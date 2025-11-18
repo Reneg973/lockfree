@@ -250,7 +250,7 @@ TEST_CASE("spsc::BipartiteBuf - Multithreaded read/write multiple",
     std::vector<unsigned int> written;
     std::vector<unsigned int> read;
 
-    const size_t data_size = 59; // Intentionally a prime number
+    static constexpr size_t data_size = 59; // Intentionally a prime number
 
     // consumer
     threads.emplace_back([&]() {
@@ -268,9 +268,9 @@ TEST_CASE("spsc::BipartiteBuf - Multithreaded read/write multiple",
 
     // producer
     threads.emplace_back([&]() {
-        unsigned int data[data_size] = {0};
+        unsigned int data[data_size];
         for (unsigned int i = 0; i < data_size; i++) {
-            data[i] = rand();
+            data[i] = (unsigned)rand();
         }
 
         size_t write_count = 0;

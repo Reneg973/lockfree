@@ -43,20 +43,42 @@
 
 #include <atomic>
 #include <cstddef>
+#include <optional>
 #include <type_traits>
 
-#if __cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
-#include <optional>
-#endif
+namespace lockfree::spsc {
 
-namespace lockfree {
-namespace spsc {
-/*************************** TYPES ****************************/
-
-template <typename T, size_t size> class Queue {
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+class Queue {
     static_assert(std::is_trivial<T>::value, "The type T must be trivial");
     static_assert(size > 2, "Buffer size must be bigger than 2");
+    using ThisClass = Behavior<T, size>;
 
+    class Pusher {
+    public:
+        Pusher(Pusher &&other) noexcept
+            : queue_(std::exchange(other.queue_, nullptr)) {
+        }
+        ~Pusher() {
+            if (queue_) {
+                queue_->_w.store(w_next_, std::memory_order_release);
+            }
+        }
+        T* Get() {
+            auto [p, next] = queue_->GetImpl();
+            if (!p)
+                queue_ = nullptr;
+            w_next_ = next;
+            return p;
+        }
+    private:
+        explicit Pusher(Queue &queue)
+            : queue_(&queue){
+        }
+        Queue *queue_;
+        size_t w_next_ = 0;
+        friend class Queue;
+    };
     /********************** PUBLIC METHODS ************************/
   public:
     Queue();
@@ -68,6 +90,7 @@ template <typename T, size_t size> class Queue {
      * @retval Operation success
      */
     bool Push(const T &element);
+    Pusher Push();
 
     /**
      * @brief Removes an element from the queue.
@@ -77,34 +100,43 @@ template <typename T, size_t size> class Queue {
      */
     bool Pop(T &element);
 
-#if __cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
-    /**
-     * @brief Removes an element from the queue.
-     * Should only be called from the consumer thread.
-     * @retval Either the element or nothing
-     */
-    std::optional<T> PopOptional();
-#endif
+    bool IsEmpty() const;
+    bool IsFull() const;
 
-    /********************** PRIVATE MEMBERS ***********************/
-  private:
+    std::optional<T> Pop();
+
+    /********************** PROTECTED MEMBERS ***********************/
+protected:
+    bool PushImpl(const T &element);
+    bool PopImpl(T &element);
+    std::optional<T> PopImpl();
+    std::pair<T*, size_t> GetImpl();
+    consteval static bool IsSizeBase2() {
+        return (size & (size - 1)) == 0;
+    }
+
     T _data[size]; /**< Data array */
 #if LOCKFREE_CACHE_COHERENT
     alignas(LOCKFREE_CACHELINE_LENGTH) std::atomic_size_t _r; /**< Read index */
-    alignas(
-        LOCKFREE_CACHELINE_LENGTH) std::atomic_size_t _w; /**< Write index */
+    alignas(LOCKFREE_CACHELINE_LENGTH) std::atomic_size_t _w; /**< Write index */
 #else
     std::atomic_size_t _r; /**< Read index */
     std::atomic_size_t _w; /**< Write index */
 #endif
 };
 
-} /* namespace spsc */
-} /* namespace lockfree */
+template<typename T, size_t size>
+struct NonBlockingQueue : Queue<T, size, NonBlockingQueue> {
+
+};
+
+} // namespace lockfree::spsc
+
 
 /************************** INCLUDE ***************************/
 
 /* Include the implementation */
 #include "queue_impl.hpp"
+#include "blocking_queue_impl.hpp"
 
 #endif /* LOCKFREE_QUEUE_HPP */

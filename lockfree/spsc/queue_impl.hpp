@@ -36,14 +36,48 @@
  * Author:          Djordje Nedic <nedic.djordje2@gmail.com>
  * Version:         v2.0.10
  **************************************************************/
+#include "queue.hpp"
 
-namespace lockfree {
-namespace spsc {
+namespace lockfree::spsc {
 /********************** PUBLIC METHODS ************************/
 
-template <typename T, size_t size> Queue<T, size>::Queue() : _r(0U), _w(0U) {}
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+Queue<T, size, Behavior>::Queue() : _r(0U), _w(0U) {}
 
-template <typename T, size_t size> bool Queue<T, size>::Push(const T &element) {
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::Push(const T &element) {
+    return static_cast<ThisClass*>(this)->PushImpl(element);
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+auto Queue<T, size, Behavior>::Push() -> Pusher {
+    return Pusher(*this);
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::Pop(T &element) {
+    return static_cast<ThisClass*>(this)->PopImpl(element);
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+std::optional<T> Queue<T, size, Behavior>::Pop() {
+    return static_cast<ThisClass*>(this)->PopImpl();
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::IsEmpty() const {
+   return _r.load(std::memory_order_relaxed) == _w.load(std::memory_order_relaxed);
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::IsFull() const {
+    auto r = _r.load(std::memory_order_relaxed);
+    auto w = _w.load(std::memory_order_relaxed);
+    return (w != (size - 1)) * (w + 1) == r;
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::PushImpl(const T &element) {
     /*
        The full check needs to be performed using the next write index not to
        miss the case when the read index wrapped and write index is at the end
@@ -68,7 +102,8 @@ template <typename T, size_t size> bool Queue<T, size>::Push(const T &element) {
     return true;
 }
 
-template <typename T, size_t size> bool Queue<T, size>::Pop(T &element) {
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+bool Queue<T, size, Behavior>::PopImpl(T &element) {
     /* Preload indexes with adequate memory ordering */
     size_t r = _r.load(std::memory_order_relaxed);
     const size_t w = _w.load(std::memory_order_acquire);
@@ -92,20 +127,28 @@ template <typename T, size_t size> bool Queue<T, size>::Pop(T &element) {
     return true;
 }
 
-/********************* std::optional API **********************/
-#if __cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
-template <typename T, size_t size>
-std::optional<T> Queue<T, size>::PopOptional() {
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+std::optional<T> Queue<T, size, Behavior>::PopImpl() {
     T element;
     bool result = Pop(element);
-
-    if (result) {
+    if (result)
         return element;
-    } else {
-        return {};
-    }
-}
-#endif
 
-} /* namespace spsc */
-} /* namespace lockfree */
+    return std::nullopt;
+}
+
+template <typename T, size_t size, template<typename U, size_t s> typename Behavior>
+std::pair<T*, size_t> Queue<T, size, Behavior>::GetImpl() {
+    const size_t w = _w.load(std::memory_order_relaxed);
+    size_t w_next = w + 1;
+    if (w_next == size) {
+        w_next = 0U;
+    }
+
+    const size_t r = _r.load(std::memory_order_acquire);
+    T *p = (w_next != r) ? &_data[w] : nullptr;
+    return {p, w_next};
+}
+
+} // namespace lockfree::spsc
+

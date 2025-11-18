@@ -7,6 +7,7 @@ project(lockfree
     VERSION 2.0.10
     LANGUAGES CXX
 )
+set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(${PROJECT_NAME})
 

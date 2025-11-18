@@ -89,7 +89,7 @@ template <typename T, size_t size, size_t priority_count> class PriorityQueue {
 
     /********************** PRIVATE MEMBERS ***********************/
   private:
-    Queue<T, size> _subqueue[priority_count];
+    NonBlockingQueue<T, size> _subqueue[priority_count];
 };
 
 } /* namespace spsc */

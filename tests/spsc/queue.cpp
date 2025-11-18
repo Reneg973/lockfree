@@ -7,7 +7,7 @@
 #include "lockfree.hpp"
 
 TEST_CASE("spsc::Queue - Write to empty and read back", "[q_write_empty]") {
-    lockfree::spsc::Queue<int16_t, 20> queue;
+    lockfree::spsc::NonBlockingQueue<int16_t, 20> queue;
 
     bool const push_success = queue.Push(-1024);
     REQUIRE(push_success);
@@ -19,7 +19,7 @@ TEST_CASE("spsc::Queue - Write to empty and read back", "[q_write_empty]") {
 }
 
 TEST_CASE("spsc::Queue - Read empty", "[q_read_empty]") {
-    lockfree::spsc::Queue<uint8_t, 20> queue;
+    lockfree::spsc::NonBlockingQueue<uint8_t, 20> queue;
 
     uint8_t read = 0;
     bool const pop_success = queue.Pop(read);
@@ -27,7 +27,7 @@ TEST_CASE("spsc::Queue - Read empty", "[q_read_empty]") {
 }
 
 TEST_CASE("spsc::Queue - Write full", "[q_write_full]") {
-    lockfree::spsc::Queue<uint8_t, 5> queue;
+    lockfree::spsc::NonBlockingQueue<uint8_t, 5> queue;
 
     bool push_success = queue.Push(1U);
     push_success = queue.Push(1U);
@@ -39,7 +39,7 @@ TEST_CASE("spsc::Queue - Write full", "[q_write_full]") {
 
 TEST_CASE("spsc::Queue - Write multiple to empty and read back",
           "[q_write_empty_multiple]") {
-    lockfree::spsc::Queue<float, 20> queue;
+    lockfree::spsc::NonBlockingQueue<float, 20> queue;
 
     bool push_success = queue.Push(2.7183F);
     REQUIRE(push_success);
@@ -61,7 +61,7 @@ TEST_CASE("spsc::Queue - Write multiple to empty and read back",
 
 TEST_CASE("spsc::Queue - Write with overflow and read back from start",
           "[q_write_overflow]") {
-    lockfree::spsc::Queue<int32_t, 4> queue;
+    lockfree::spsc::NonBlockingQueue<int32_t, 4> queue;
 
     bool push_success = queue.Push(-1024);
     push_success = queue.Push(111);
@@ -82,17 +82,17 @@ TEST_CASE("spsc::Queue - Write with overflow and read back from start",
 }
 
 TEST_CASE("spsc::Queue - Optional API", "[q_optional_api]") {
-    lockfree::spsc::Queue<uint64_t, 20> queue;
+    lockfree::spsc::NonBlockingQueue<uint64_t, 20> queue;
 
-    REQUIRE(!queue.PopOptional());
+    REQUIRE(!queue.Pop());
     queue.Push(-1024);
 
-    REQUIRE(queue.PopOptional() == -1024);
+    REQUIRE(queue.Pop() == -1024);
 }
 
 TEST_CASE("spsc::Queue - Multithreaded read/write", "[q_multithread]") {
     std::vector<std::thread> threads;
-    lockfree::spsc::Queue<uint64_t, 1024U> queue;
+    lockfree::spsc::NonBlockingQueue<uint64_t, 1024U> queue;
     std::vector<uint64_t> written;
     std::vector<uint64_t> read;
 
